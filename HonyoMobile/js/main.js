@@ -24,3 +24,12 @@ function toggleMenu(obj){
 		_ul.style.display = "none";
 	}
 }
+//FOOTER高度控制
+window.onload =function(){
+	var f = document.getElementsByTagName("footer")[0];
+	var pHeight = document.body.clientHeight;
+	var wHeight = document.body.scrollHeight;
+	if( pHeight < wHeight ){
+		f.style.marginTop = (wHeight-pHeight)+"px";
+	} 
+};
