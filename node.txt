@@ -1,0 +1,148 @@
+***模块加载与模块定义***
+1.node基于的是CommonJS的模块模式；各模块之间上下文、作用域独立，相当于每个模块都是一个闭包。
+CommonJS和CMD模块、AMD模块都不同。
+CMD是懒加载，可以随时定义模块，随时加载并且严格按照模块引入顺序执行回调；AMD则在define函数头部定义模块，预先定义，加载顺序不固定，先加载完再执行。
+AMD的应用在于浏览器端，CMD的应用在于node.js等服务端。
+2.自定义模块：
+模块需要有export导出。比如定义一个Circle模块：
+	function Circle(){
+		//Code here
+	}
+	module.exports = Circle;
+这时候在主模块中，使用“var cir = require('./Circle')”；这时，cir本质是Function;
+如果定义是这样的：
+	function Circle(){
+		//Code here
+	}
+	module.exports = {
+		Circle:Circle,
+		pai : 3.1415
+	}
+这时候cir就是一个对象了。所以exports导出的具体内容决定了模块对外暴露的是一个对象还是一个接口函数。
+3.加载模块
+node里面的模块大概分为：系统核心模块（node环境自带），自定义模块，node_modules内的模块（通过npm install的开源模块）；
+自定义模块加载时需要考虑相对路径('./')和绝对路径（/），模块不需要带后缀.js，默认模块后缀就是.js。
+比如Lesson7中 circle.js和index.js在同级目录下，index.js中的加载circle的代码为：
+	var cir = require('./Circle');
+模块的加载查找顺序为：
+	加载路径是否为绝对路径或者相对路径？	是：查找自定义模块？
+									否：核心模块？--->node_modules内模块？
+4.多次加载
+node内部存在模块缓存机制，即同一文件内部加载两次模块，实际只加载一次。
+	var cir1 = require('./Circle');
+	var cir2 = require('./Circle');
+cir1和cir2实际只加载了一次Circle模块。
+
+
+
+
+
+***buffer缓冲区***
+1.javascript中的基础类型只含有undefined、null、boolean、number、str，对于字符串来说，js中是不提供字节字符、ascii码转换的。
+所以js在处理二进制数据的时候效率很低。而且很多时候web端需要编码转化，js也是不能做的。
+2.node中提出Buffer的概念，提供二进制缓冲区，内部字符提供ascii码，并提供一系列Buffer Api。确实很好用。
+Buffer缓冲区不在JS VM回收机制中，不会被垃圾回收算法收集处理，即buf所占有的空间是固定的、不被回收的、共享的。
+3.创建Buffer
+两种方式，一种是直接按照所需大小创建，另一种是根据实际字符串长度创建。
+	var buf = new Buffer(1024);	//创建1024个字节大小的缓冲区，即1K
+	var buf = new Buffer('helloworld');	//创建10字节大小的缓冲区
+创建Buffer时可以指定其编码格式，即
+	new Buffer(str,'base64')，即以base64编码读入该字符串
+4.Buffer读取与设置数据
+开辟好的缓冲区是一段连续的空间，即可以通过数组下标访问具体的字节；
+	var buf =  new Bufffer('helloworld');
+	buf[4];	//buf[4]的实际内容是111，即o所对应的ASCII码
+	buf[4] = 112; 
+	console.log( buf.toString() ); 	//输出的就是hellpworld
+缓冲区赋值时，大小应为1~256（256对应ascii中的0）；如果超过256的话会取余数
+buf.length	//缓冲区长度，字节总数
+buf.toString()	//以String方式输出当前缓冲区，可以指定编码类型  buf.toString('base64'),默认是UTF8
+				//可以通过这一点实现编码转换
+5.利用Buffer实现编码转换
+现有str为base64编码的字符串，让其输出utf8所对应的编码：
+	var buf = new Buffer(str,'base64')
+	return buf.toString();	//默认以UTF8输出
+6.Buffer缓冲区的截取和复制
+slice(start,end)函数:截取角标start到end内的字节
+		var buf = new Buffer('hello');
+		var buf_son = buf.slice(1,3);	
+	buf_son不是新开辟的区域，而是直接指向buf缓存区，内容为ell
+	子缓冲区的修改会影响父缓冲区，反过来也是一样
+copy(buffer,targetStart,sourceStart,sourceEnd)
+	buffer: 源缓冲区 targetStart:初始目标位 sourceStart:基于初始目标位的截取起始位 sourceEnd:基于初始目标位的截取终止位
+
+
+
+
+
+***事件发射器模式***
+1.node中很多对象都能发射事件，比如tcp对象在发起请求时会对外发射connect事件，可以对connect事件添加监听器来实现回调。
+node中http,tcp等对象都是继承自EventEmitter函数，自带事件发射器机制，并且内置了一些事件种类。
+自定义的对象如果想实现发射模式，必须继承event模块下的EventEmitter
+2.事件发射器：通过emit函数抛出事件，emit函数的调用者必须是EventEmitter,总结来说，自己抛自己接
+  事件监听器：绑定on,addEventListener,once等函数实现事件的监听，同样，只接自己抛的
+3.事件类型
+Node中原生对象所抛出的事件类型是提前固定好的，当然也可以自添加事件类别
+	obj.emit("temp");	//抛出temp类型的事件
+	obj.on("temp",function(){
+		//回调函数
+	});
+如果抛出事件没有相对应监听，则自动忽略
+但error例外，如果没有监听接受的话则会自动向环境外层抛出，导致程序挂起
+4.事件监听函数
+	on,addEventListener(事件类型,回调)
+	once仅触发一次的回调（自己也可以封装，在内部末尾调用remove函数即可）
+	removeListener(事件类型，需解除的回调函数)	//所以如果通过内部匿名函数绑定事件，就不能通过这个方式来解除绑定
+											//例子：obj.on("data",function(){ ... }) 
+	removeAllListeners(事件类型)	“SIGTERM”为所有事件
+5.发射事件
+上面提到了，事件发射的“发射装置”自身也必须是支持事件发射器模式，即继承自EventEmitter的；而且自己抛自己接，自己接自己抛的；								emit(事件类型,[回调函数参数]); //参数可选，会传入至监听器的回调参数
+6.自定义对象 并 实现事件发射机制
+自定义对象实现模式时，必须采用构造器来创建对象；
+构造器函数必须继承EventEmitter;
+事件监听应绑定在对象上，没办法绑在构造器函数上；
+	var util = require('util');
+	var EventEmitter = require('events').EventEmitter;
+
+	function Student(n){
+		this.name = n;
+	}
+	util.inherits(Student,EventEmitter);			//util.inherits函数：实现原型继承
+	Student.prototype.doHomeWork = function(){
+		var self = this;
+		setTimeout(function(){
+			console.log("Finished HomeWork");
+			self.emit("done");
+		},1000);
+	}
+
+
+	var stu = new Student("Tom");
+	stu.on("done",function(){
+		console.log("on:"+this.name+"Finished");	//事件监听只能绑定在具体的对象上，而不能绑定在构造函数中
+	});
+输出结果为：
+		Finished HomeWork
+		on:Tom Finished
+
+
+
+
+
+***文件操作***
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
